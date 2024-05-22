@@ -49,9 +49,6 @@ pub struct PluginData {
 
     /// Highest slot that an account write has been processed for thus far.
     highest_write_slot: Arc<AtomicU64>,
-
-    is_startup_completed: AtomicBool,
-    ignore_startup_updates: bool,
 }
 
 #[derive(Default)]
@@ -74,7 +71,6 @@ pub struct PluginConfig {
     pub slot_update_buffer_size: usize,
     pub block_update_buffer_size: usize,
     pub transaction_update_buffer_size: usize,
-    pub skip_startup_stream: Option<bool>,
 }
 
 impl GeyserPlugin for GeyserGrpcPlugin {
@@ -154,9 +150,6 @@ impl GeyserPlugin for GeyserGrpcPlugin {
             block_update_sender,
             transaction_update_sender,
             highest_write_slot,
-            is_startup_completed: AtomicBool::new(false),
-            // don't skip startup to keep backwards compatability
-            ignore_startup_updates: config.skip_startup_stream.unwrap_or(false),
         });
         info!("plugin data initialized");
 
@@ -171,15 +164,6 @@ impl GeyserPlugin for GeyserGrpcPlugin {
             .send(())
             .expect("sending grpc server termination should succeed");
         data.runtime.shutdown_background();
-    }
-
-    fn notify_end_of_startup(&self) -> PluginResult<()> {
-        self.data
-            .as_ref()
-            .unwrap()
-            .is_startup_completed
-            .store(true, Ordering::Relaxed);
-        Ok(())
     }
 
     fn update_account(
@@ -284,6 +268,10 @@ impl GeyserPlugin for GeyserGrpcPlugin {
                 })
             }
         }
+    }
+
+    fn notify_end_of_startup(&self) -> PluginResult<()> {
+        Ok(())
     }
 
     fn update_slot_status(
